@@ -1,0 +1,74 @@
+name: XFP native release
+on:
+  push:
+    tags: ['xfp-v*']
+permissions:
+  contents: read
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            binary: agent-browser-darwin-arm64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            binary: agent-browser-darwin-x64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            binary: agent-browser-win32-x64.exe
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts --filter dashboard...
+      - run: pnpm --filter dashboard build
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: cli
+      - run: cargo build --locked --profile ci --manifest-path cli/Cargo.toml --target ${{ matrix.target }}
+      - name: Prepare native artifact
+        run: |
+          mkdir -p artifacts
+          source=cli/target/${{ matrix.target }}/ci/agent-browser
+          if [ '${{ runner.os }}' = Windows ]; then source="$source.exe"; fi
+          cp "$source" artifacts/${{ matrix.binary }}
+          chmod +x artifacts/${{ matrix.binary }}
+      - name: Verify native version
+        if: matrix.target != 'x86_64-apple-darwin'
+        run: ./artifacts/${{ matrix.binary }} --version
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.binary }}
+          path: artifacts/*
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/download-artifact@v4
+        with:
+          path: native-artifacts
+          merge-multiple: true
+      - run: node scripts/pack-xfp.mjs
+      - name: Publish pinned package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" xfp-package/*.tgz native-artifacts/* --title "$GITHUB_REF_NAME" --notes-file XFP.md --verify-tag

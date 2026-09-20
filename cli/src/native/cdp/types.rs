@@ -141,6 +141,8 @@ pub struct SetDiscoverTargetsParams {
 #[serde(rename_all = "camelCase")]
 pub struct CreateTargetParams {
     pub url: String,
+    /// Open without raising the browser window.
+    pub background: bool,
 }
 
 #[derive(Debug, Deserialize)]
