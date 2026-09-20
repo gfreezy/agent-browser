@@ -6,7 +6,8 @@ Patch ported from https://github.com/vercel-labs/agent-browser/pull/1695
 
 All internal and explicit tab creation requests set background=true. Switching
 an automation target and auto-connect no longer implicitly bring Chrome forward.
-Use the explicit bringtofront command for human handoff. This does not promise
+The fork also exposes the existing native bringtofront action through the CLI
+(the upstream v0.38.1 parser did not expose it). Use it for human handoff. This does not promise
 that first browser launch or operating-system dialogs cannot activate a window.
 
 Maintenance branch: xfp. Keep upstream changes separate and port reviewed fixes.

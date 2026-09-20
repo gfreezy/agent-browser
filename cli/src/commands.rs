@@ -104,6 +104,7 @@ pub fn is_top_level_command(value: &str) -> bool {
             | "fill"
             | "type"
             | "hover"
+            | "bringtofront"
             | "focus"
             | "check"
             | "uncheck"
@@ -512,6 +513,7 @@ fn parse_command_inner(args: &[String], flags: &Flags) -> Result<Value, ParseErr
             })?;
             Ok(json!({ "id": id, "action": "hover", "selector": sel }))
         }
+        "bringtofront" => Ok(json!({ "id": id, "action": "bringtofront" })),
         "focus" => {
             let sel = rest.first().ok_or_else(|| ParseError::MissingArguments {
                 context: "focus".to_string(),
@@ -4633,6 +4635,13 @@ mod tests {
         .unwrap();
         assert_eq!(cmd["url"], "https://docs.example.com");
         assert_eq!(cmd["label"], "docs");
+    }
+
+    #[test]
+    fn test_bringtofront_explicit_command() {
+        assert!(is_top_level_command("bringtofront"));
+        let cmd = parse_command(&args("bringtofront"), &default_flags()).unwrap();
+        assert_eq!(cmd["action"], "bringtofront");
     }
 
     #[test]
