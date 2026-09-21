@@ -50,6 +50,7 @@ jobs:
         if: matrix.target != 'x86_64-apple-darwin'
         run: ./artifacts/${{ matrix.binary }} --version
       - name: Verify window helper pipe with installed Chrome
+        timeout-minutes: 5
         if: matrix.target != 'x86_64-apple-darwin'
         run: python scripts/test-xfp-window-helper.py ./artifacts/${{ matrix.binary }}
       - uses: actions/upload-artifact@v4

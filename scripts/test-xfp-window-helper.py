@@ -32,11 +32,20 @@ with tempfile.TemporaryDirectory(prefix="xfp-pipe-") as directory:
               "--executable-path", str(chrome)]
 
     def command(*args):
-        result = subprocess.run(prefix + list(args), env=env, capture_output=True,
-                                text=True, timeout=90)
-        assert result.returncode == 0, result.stdout + result.stderr
-        response = json.loads(result.stdout)
+        print("Running:", " ".join(args), flush=True)
+        # A detached Windows daemon can retain inherited pipe handles. Wait for
+        # the CLI process itself, not EOF from every descendant's output handle.
+        with tempfile.TemporaryFile(mode="w+b") as output, tempfile.TemporaryFile(mode="w+b") as errors:
+            result = subprocess.run(prefix + list(args), env=env, stdout=output,
+                                    stderr=errors, timeout=90)
+            output.seek(0)
+            errors.seek(0)
+            stdout = output.read().decode("utf-8", errors="replace")
+            stderr = errors.read().decode("utf-8", errors="replace")
+        assert result.returncode == 0, stdout + stderr
+        response = json.loads(stdout)
         assert response.get("success"), response
+        print("Passed:", " ".join(args), flush=True)
         return response["data"]
 
     try:
@@ -49,6 +58,10 @@ with tempfile.TemporaryDirectory(prefix="xfp-pipe-") as directory:
             # A second CLI request and a full restart must not lose the pipe.
             assert command("eval", "6 * 7")["result"] == 42
             command("close")
-        print("PASS: helper pipe installation, selected tab, retained connection, profile restart")
+            # The old daemon may still be removing its socket after acknowledging
+            # close. A new session exercises the persisted profile without racing it.
+            prefix[prefix.index("--session") + 1] = "pipe-" + uuid.uuid4().hex[:10]
+        print("PASS: helper pipe installation, selected tab, retained connection, profile restart", flush=True)
     finally:
-        subprocess.run(prefix + ["close"], env=env, capture_output=True, timeout=90)
+        subprocess.run(prefix + ["close"], env=env, stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL, timeout=30)
