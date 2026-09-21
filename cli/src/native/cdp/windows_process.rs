@@ -61,12 +61,38 @@ impl Drop for Desktop {
 
 impl Child {
     pub fn spawn(program: &Path, args: &[String], headless: bool) -> io::Result<Self> {
+        Self::spawn_with_pipe(program, args, headless, None)
+    }
+
+    pub fn spawn_with_pipe(
+        program: &Path,
+        args: &[String],
+        headless: bool,
+        pipe: Option<&super::pipe::Endpoints>,
+    ) -> io::Result<Self> {
+        // Chrome takes native inherited HANDLE values on Windows, not CRT fd 3/4.
+        let pipe_handles = pipe
+            .map(|pipe| -> io::Result<_> {
+                Ok([
+                    inheritable(pipe.child_read.as_raw_handle() as HANDLE)?,
+                    inheritable(pipe.child_write.as_raw_handle() as HANDLE)?,
+                ])
+            })
+            .transpose()?;
+        let mut args = args.to_vec();
+        if let Some(handles) = &pipe_handles {
+            args.push(format!(
+                "--remote-debugging-io-pipes={},{}",
+                raw(&handles[0]) as u32,
+                raw(&handles[1]) as u32
+            ));
+        }
         // Resolve relative paths without relying on CreateProcess's executable
         // search rules. Chrome discovery and --executable-path supply a path.
         let program = std::fs::canonicalize(program)?;
         let application = wide(program.as_os_str())?;
         let mut command_line = quoted(program.as_os_str())?;
-        for arg in args {
+        for arg in &args {
             command_line.push(b' ' as u16);
             command_line.extend(quoted(OsStr::new(arg))?);
         }
@@ -122,7 +148,10 @@ impl Child {
         let stderr_handle = inheritable(stderr_writer.as_raw_handle() as HANDLE)?;
         // The handle allowlist excludes the job, the desktop, and all other
         // daemon handles, even when another thread is spawning concurrently.
-        let handles = [raw(&null_handle), raw(&stderr_handle)];
+        let mut handles = vec![raw(&null_handle), raw(&stderr_handle)];
+        if let Some(pipe) = &pipe_handles {
+            handles.extend(pipe.iter().map(raw));
+        }
         let jobs = [raw(&job)];
         let mut attributes = AttributeList::new(2)?;
         attributes.add(PROC_THREAD_ATTRIBUTE_HANDLE_LIST, &handles)?;

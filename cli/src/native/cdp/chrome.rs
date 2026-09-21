@@ -13,6 +13,8 @@ use crate::ca_bundle::CaBundle;
 pub struct ChromeProcess {
     child: Child,
     pub ws_url: String,
+    pub window_helper_id: Option<String>,
+    _helper_pipe: Option<super::pipe::Transport>,
     temp_user_data_dir: Option<PathBuf>,
     temp_nss_home: Option<PreparedNssHome>,
     /// On Unix, the process group ID used to kill the entire Chrome process tree.
@@ -822,6 +824,18 @@ fn try_launch_chrome(chrome_path: &Path, options: &LaunchOptions) -> Result<Chro
     #[cfg(target_os = "linux")]
     let xvfb = maybe_start_xvfb(options);
 
+    let pipe_endpoints = if !options.effectively_headless()
+        && std::env::var("AGENT_BROWSER_BACKGROUND_WINDOW").as_deref() == Ok("1")
+        && args.iter().any(|arg| arg == "--remote-debugging-pipe")
+    {
+        Some(super::pipe::Endpoints::new().map_err(|e| {
+            cleanup_temp_dir(&temp_user_data_dir);
+            format!("Cannot create Chrome debugging pipe: {e}")
+        })?)
+    } else {
+        None
+    };
+
     #[cfg(not(windows))]
     let mut cmd = Command::new(chrome_path);
     #[cfg(not(windows))]
@@ -864,14 +878,30 @@ fn try_launch_chrome(chrome_path: &Path, options: &LaunchOptions) -> Result<Chro
         }
     }
 
+    #[cfg(unix)]
+    if let Some(pipe) = &pipe_endpoints {
+        pipe.configure(&mut cmd).map_err(|e| {
+            cleanup_temp_dir(&temp_user_data_dir);
+            format!("Cannot configure Chrome debugging pipe: {e}")
+        })?;
+    }
     #[cfg(not(windows))]
     let spawned = cmd.spawn();
+    #[cfg(not(windows))]
+    drop(cmd);
     #[cfg(windows)]
-    let spawned = Child::spawn(chrome_path, &args, options.effectively_headless());
+    let spawned = Child::spawn_with_pipe(
+        chrome_path,
+        &args,
+        options.effectively_headless(),
+        pipe_endpoints.as_ref(),
+    );
     let mut child = spawned.map_err(|e| {
         cleanup_temp_dir(&temp_user_data_dir);
         format!("Failed to launch Chrome at {:?}: {}", chrome_path, e)
     })?;
+
+    let helper_pipe = pipe_endpoints.map(super::pipe::Endpoints::connect);
 
     // Shared overall deadline so we don't double-wait (poll + stderr fallback).
     let deadline = std::time::Instant::now() + Duration::from_secs(30);
@@ -911,16 +941,24 @@ fn try_launch_chrome(chrome_path: &Path, options: &LaunchOptions) -> Result<Chro
         Some(pid)
     };
 
-    Ok(ChromeProcess {
+    let mut process = ChromeProcess {
         child,
         ws_url,
+        window_helper_id: None,
+        _helper_pipe: helper_pipe,
         temp_user_data_dir,
         temp_nss_home,
         #[cfg(unix)]
         pgid,
         #[cfg(target_os = "linux")]
         xvfb,
-    })
+    };
+    if let Some(pipe) = &mut process._helper_pipe {
+        // The process now owns cleanup if extension installation fails.
+        process.window_helper_id =
+            Some(pipe.load_helper(&user_data_dir.join(".xfp-window-helper"))?);
+    }
+    Ok(process)
 }
 
 fn wait_for_devtools_active_port(
@@ -2333,6 +2371,8 @@ mod tests {
             let _process = ChromeProcess {
                 child,
                 ws_url: String::new(),
+                window_helper_id: None,
+                _helper_pipe: None,
                 temp_user_data_dir: Some(dir.clone()),
                 temp_nss_home: None,
                 #[cfg(unix)]

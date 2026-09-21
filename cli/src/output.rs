@@ -4141,7 +4141,7 @@ Environment:
   AGENT_BROWSER_STREAM_MAX_HEIGHT Cap frame height in pixels (default: the viewport)
   AGENT_BROWSER_DASHBOARD_ALLOWED_ORIGINS
                                  Comma-separated exact HTTPS origins allowed for a reverse-proxied dashboard
-  AGENT_BROWSER_BACKGROUND_WINDOW  XFP: 1 enables inactive headed window creation and visible tab selection (absolute profile required)
+  AGENT_BROWSER_BACKGROUND_WINDOW  XFP: 1 enables inactive headed window creation and visible tab selection (absolute profile; helper loaded via CDP pipe)
   AGENT_BROWSER_IDLE_TIMEOUT_MS  Auto-shutdown daemon after N ms of inactivity (default: 3600000 = 1h; 0 disables)
                                  Dashboard input resets the timer; headed, Safari/iOS WebDriver, and user-attached browsers are exempt from the default
                                  Provider-owned cloud browsers remain eligible for default cleanup

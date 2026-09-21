@@ -498,15 +498,19 @@ impl BrowserManager {
         let color_scheme = options.color_scheme.clone();
         let download_path = options.download_path.clone();
         let headless = options.effectively_headless();
-        let window_helper_path = if !headless
+        let use_window_helper = if !headless
             && engine == "chrome"
             && std::env::var("AGENT_BROWSER_BACKGROUND_WINDOW").as_deref() == Ok("1")
         {
-            let path = super::window_helper::prepare(options.profile.as_deref())?;
+            super::window_helper::prepare(options.profile.as_deref())?;
             options.args.push("--no-startup-window".into());
-            Some(path)
+            options.args.push("--remote-debugging-pipe".into());
+            options
+                .args
+                .push("--enable-unsafe-extension-debugging".into());
+            true
         } else {
-            None
+            false
         };
 
         let (ws_url, process) = match engine {
@@ -529,6 +533,10 @@ impl BrowserManager {
             }
         };
 
+        let helper_id = match &process {
+            BrowserProcess::Chrome(chrome) => chrome.window_helper_id.clone(),
+            _ => None,
+        };
         let mut manager = if engine == "lightpanda" {
             initialize_lightpanda_manager(ws_url, process).await?
         } else {
@@ -551,8 +559,11 @@ impl BrowserManager {
                 headless,
                 window_helper: None,
             };
-            if let Some(path) = window_helper_path {
-                match super::window_helper::WindowHelper::install(&manager.client, &path).await {
+            if use_window_helper {
+                let id = helper_id
+                    .as_deref()
+                    .ok_or("Window helper was not loaded through the Chrome pipe")?;
+                match super::window_helper::WindowHelper::attach(&manager.client, id).await {
                     Ok(helper) => manager.window_helper = Some(helper),
                     Err(error) => {
                         let _ = manager

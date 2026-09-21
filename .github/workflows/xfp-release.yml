@@ -49,6 +49,9 @@ jobs:
       - name: Verify native version
         if: matrix.target != 'x86_64-apple-darwin'
         run: ./artifacts/${{ matrix.binary }} --version
+      - name: Verify window helper pipe with installed Chrome
+        if: matrix.target != 'x86_64-apple-darwin'
+        run: python scripts/test-xfp-window-helper.py ./artifacts/${{ matrix.binary }}
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.binary }}

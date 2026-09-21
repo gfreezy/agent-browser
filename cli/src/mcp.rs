@@ -9,7 +9,8 @@
 //! lifetime through MCP; headed and external-connection semantics are unchanged.
 
 // XFP AGENT_BROWSER_BACKGROUND_WINDOW is inherited by the shared native daemon.
-// MCP tab commands use the same manager as CLI; no separate tool is needed.
+// MCP tab commands use the same manager and trusted helper-install pipe as CLI;
+// no separate tool or transport configuration is needed.
 
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde_json::{json, Value};

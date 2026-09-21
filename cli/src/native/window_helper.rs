@@ -26,14 +26,8 @@ pub struct WindowHelper {
 }
 
 impl WindowHelper {
-    pub async fn install(client: &CdpClient, path: &Path) -> Result<Self, String> {
-        let loaded = client
-            .send_command("Extensions.loadUnpacked", Some(json!({"path": path})), None)
-            .await
-            .map_err(|e| {
-                format!("Chrome cannot load the background window helper; update Chrome: {e}")
-            })?;
-        let id = loaded["id"].as_str().ok_or("Missing extension ID")?;
+    /// Attach to the helper already installed over the trusted browser pipe.
+    pub async fn attach(client: &CdpClient, id: &str) -> Result<Self, String> {
         let worker_url = format!("chrome-extension://{id}/worker.js");
         let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
         loop {
