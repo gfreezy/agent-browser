@@ -33,15 +33,11 @@ with tempfile.TemporaryDirectory(prefix="xfp-pipe-") as directory:
 
     def command(*args):
         print("Running:", " ".join(args), flush=True)
-        # A detached Windows daemon can retain inherited pipe handles. Wait for
-        # the CLI process itself, not EOF from every descendant's output handle.
-        with tempfile.TemporaryFile(mode="w+b") as output, tempfile.TemporaryFile(mode="w+b") as errors:
-            result = subprocess.run(prefix + list(args), env=env, stdout=output,
-                                    stderr=errors, timeout=90)
-            output.seek(0)
-            errors.seek(0)
-            stdout = output.read().decode("utf-8", errors="replace")
-            stderr = errors.read().decode("utf-8", errors="replace")
+        # Capture real pipes: returning JSON is insufficient if a detached daemon
+        # inherits their write handles and prevents EOF after the CLI exits.
+        result = subprocess.run(prefix + list(args), env=env, capture_output=True,
+                                encoding="utf-8", errors="replace", timeout=90)
+        stdout, stderr = result.stdout, result.stderr
         assert result.returncode == 0, stdout + stderr
         response = json.loads(stdout)
         assert response.get("success"), response

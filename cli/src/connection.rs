@@ -789,6 +789,25 @@ fn stop_existing_daemon_for_restart(session: &str) {
     }
 }
 
+/// Keep detached children from retaining the CLI caller's captured output pipes.
+/// Ported from upstream PR #1781; applies to CLI and MCP-triggered launches.
+#[cfg(windows)]
+pub(crate) fn prevent_stdio_handle_inheritance() {
+    use std::os::windows::io::AsRawHandle;
+    use windows_sys::Win32::Foundation::{SetHandleInformation, HANDLE_FLAG_INHERIT};
+
+    unsafe {
+        for handle in [
+            std::io::stdout().as_raw_handle(),
+            std::io::stderr().as_raw_handle(),
+        ] {
+            if !handle.is_null() {
+                let _ = SetHandleInformation(handle as isize, HANDLE_FLAG_INHERIT, 0);
+            }
+        }
+    }
+}
+
 pub fn ensure_daemon(session: &str, opts: &DaemonOptions) -> Result<DaemonResult, String> {
     let mut restarted = false;
 
@@ -873,7 +892,6 @@ pub fn ensure_daemon(session: &str, opts: &DaemonOptions) -> Result<DaemonResult
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
-
         let mut cmd = Command::new(&exe_path);
         cmd.env("AGENT_BROWSER_DAEMON", "1");
         apply_daemon_env(&mut cmd, session, opts);
@@ -898,6 +916,7 @@ pub fn ensure_daemon(session: &str, opts: &DaemonOptions) -> Result<DaemonResult
     {
         use std::os::windows::process::CommandExt;
 
+        prevent_stdio_handle_inheritance();
         let mut cmd = Command::new(&exe_path);
         cmd.env("AGENT_BROWSER_DAEMON", "1");
         apply_daemon_env(&mut cmd, session, opts);

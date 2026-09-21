@@ -25,3 +25,7 @@ operations before moving the desktop app back to an upstream package.
 ### XFP background windows
 
 Set `AGENT_BROWSER_BACKGROUND_WINDOW=1` for daemon-owned headed Chrome with an absolute `--profile` path. The bundled XFP extension creates the initial window without activation and selects visible tabs without raising the window. `bringtofront` still explicitly raises it. Headless browsers, imported profile names and attached browsers are not opted in. The helper is installed through a browser-level debugging pipe with `--enable-unsafe-extension-debugging`, including Chrome versions that reject installation over WebSocket. Page automation continues over WebSocket; the pipe stays open for the browser lifetime. Versions without `Extensions.loadUnpacked` still fail instead of falling back to focus-stealing activation. The helper uses `debugger.getTargets` only for tab identity; it never attaches a debugger or accesses website data.
+
+### Windows output capture
+
+Detached daemon and dashboard launches clear inheritance on the CLI stdout/stderr handles, ported from upstream PR #1781 (https://github.com/vercel-labs/agent-browser/pull/1781). This prevents a background process from keeping a caller's output pipe open after the CLI exits, including MCP-triggered CLI launches. Release integration tests capture real pipes across cold starts and close/reopen cycles on Windows and macOS.
