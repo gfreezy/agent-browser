@@ -1,8 +1,20 @@
 # agent-browser
 
-## 0.38.1
+## 0.38.1-xfp.3
 
 <!-- release:start -->
+### New Features
+
+- Added **opt-in background windows** for XFP: automatically load the bundled helper in the owned collection profile, create visible windows without activation, and select tabs without raising Chrome. Explicit foreground handoff remains available.
+
+### Contributors
+
+- @gfreezy
+
+<!-- release:end -->
+
+## 0.38.1
+
 ### Bug Fixes
 
 - Fixed **recording cursor and mouse movement timing** so cursor rendering stays synchronized with page content during drags and timed mouse moves (#1869)
@@ -15,7 +27,6 @@
 
 - @ctate
 - @Railly
-<!-- release:end -->
 
 ## 0.38.0
 

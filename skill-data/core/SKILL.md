@@ -576,3 +576,8 @@ That pulls in:
 - `references/proxy-support.md`: proxy configuration and CA certificates for HTTPS interception proxies
 - `references/webgpu.md` — screenshots/video of WebGPU pages (three.js, Babylon.js), Linux/CI setup
 - `templates/*` — starter shell scripts for auth, capture, form automation
+
+
+### XFP background windows
+
+Set `AGENT_BROWSER_BACKGROUND_WINDOW=1` for daemon-owned headed Chrome with an absolute `--profile` path. The bundled XFP extension creates the initial window without activation and selects visible tabs without raising the window. `bringtofront` still explicitly raises it. Headless browsers, imported profile names and attached browsers are not opted in. Requires Chrome support for `Extensions.loadUnpacked`; unsupported versions fail instead of falling back to focus-stealing activation. The helper uses `debugger.getTargets` only for tab identity; it never attaches a debugger or accesses website data.

@@ -2011,3 +2011,8 @@ When enabled, agent-browser connects to an AgentCore cloud browser session inste
 ## License
 
 Apache-2.0
+
+
+### XFP background windows
+
+Set `AGENT_BROWSER_BACKGROUND_WINDOW=1` for daemon-owned headed Chrome with an absolute `--profile` path. The bundled XFP extension creates the initial window without activation and selects visible tabs without raising the window. `bringtofront` still explicitly raises it. Headless browsers, imported profile names and attached browsers are not opted in. Requires Chrome support for `Extensions.loadUnpacked`; unsupported versions fail instead of falling back to focus-stealing activation. The helper uses `debugger.getTargets` only for tab identity; it never attaches a debugger or accesses website data.

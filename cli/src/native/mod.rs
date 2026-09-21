@@ -53,3 +53,5 @@ pub mod webmcp;
 mod e2e_tests;
 #[cfg(test)]
 mod parity_tests;
+
+pub mod window_helper;

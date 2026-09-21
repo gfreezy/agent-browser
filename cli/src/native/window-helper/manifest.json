@@ -1,0 +1,8 @@
+{
+  "manifest_version": 3,
+  "name": "XFP Window Helper",
+  "version": "1.0.0",
+  "description": "Select collection tabs without raising the Chrome window.",
+  "permissions": ["debugger"],
+  "background": { "service_worker": "worker.js" }
+}

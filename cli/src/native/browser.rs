@@ -425,6 +425,7 @@ pub struct BrowserManager {
     /// launch rules such as extension-forced headed mode. Meaningless for
     /// attached browsers (browser_process is None).
     headless: bool,
+    window_helper: Option<super::window_helper::WindowHelper>,
 }
 
 /// Stable machine-readable prefix for "the bound tab no longer exists"
@@ -461,7 +462,7 @@ impl BrowserManager {
         self.browser_process.is_none() || !self.headless
     }
 
-    pub async fn launch(options: LaunchOptions, engine: Option<&str>) -> Result<Self, String> {
+    pub async fn launch(mut options: LaunchOptions, engine: Option<&str>) -> Result<Self, String> {
         let engine = engine.unwrap_or("chrome");
 
         match engine {
@@ -497,6 +498,16 @@ impl BrowserManager {
         let color_scheme = options.color_scheme.clone();
         let download_path = options.download_path.clone();
         let headless = options.effectively_headless();
+        let window_helper_path = if !headless
+            && engine == "chrome"
+            && std::env::var("AGENT_BROWSER_BACKGROUND_WINDOW").as_deref() == Ok("1")
+        {
+            let path = super::window_helper::prepare(options.profile.as_deref())?;
+            options.args.push("--no-startup-window".into());
+            Some(path)
+        } else {
+            None
+        };
 
         let (ws_url, process) = match engine {
             "lightpanda" => {
@@ -538,7 +549,19 @@ impl BrowserManager {
                 bound_target_id: None,
                 bound_target_gone: None,
                 headless,
+                window_helper: None,
             };
+            if let Some(path) = window_helper_path {
+                match super::window_helper::WindowHelper::install(&manager.client, &path).await {
+                    Ok(helper) => manager.window_helper = Some(helper),
+                    Err(error) => {
+                        let _ = manager
+                            .close_with_timeout(Some(FAILED_INITIALIZATION_CLOSE_TIMEOUT))
+                            .await;
+                        return Err(error);
+                    }
+                }
+            }
             if let Err(error) = manager.discover_and_attach_targets().await {
                 let _ = manager
                     .close_with_timeout(Some(FAILED_INITIALIZATION_CLOSE_TIMEOUT))
@@ -645,6 +668,7 @@ impl BrowserManager {
             bound_target_id: None,
             bound_target_gone: None,
             headless: true,
+            window_helper: None,
         };
 
         let initialization = if direct_page {
@@ -907,6 +931,17 @@ impl BrowserManager {
         // paused, so the probe times out without the tab being discarded.
         if dialog_session == Some(session_id) {
             return Ok(RendererState::DialogBlocked);
+        }
+        if let Some(helper) = &self.window_helper {
+            helper.select(&self.client, target_id).await?;
+            return if self
+                .renderer_responds(session_id, REVIVED_RENDERER_TIMEOUT_MS)
+                .await
+            {
+                Ok(RendererState::Revived)
+            } else {
+                Err("tab is not responding after background selection".into())
+            };
         }
         match tokio::time::timeout(
             Duration::from_millis(REVIVED_RENDERER_TIMEOUT_MS),
@@ -1636,6 +1671,9 @@ impl BrowserManager {
         });
         self.active_page_index = index;
         self.bind_active_target();
+        if let Some(helper) = &self.window_helper {
+            helper.select(&self.client, &target_id).await?;
+        }
 
         Ok(json!({
             "tabId": format_tab_id(tab_id),
@@ -1661,6 +1699,9 @@ impl BrowserManager {
 
         let session_id = self.pages[index].session_id.clone();
         let target_id = self.pages[index].target_id.clone();
+        if let Some(helper) = &self.window_helper {
+            helper.select(&self.client, &target_id).await?;
+        }
         // A discarded tab has no renderer to answer Page.enable, so revive it
         // first and commit the switch only once it is usable.
         let renderer_state = self
@@ -2357,6 +2398,7 @@ async fn initialize_lightpanda_manager(
             bound_target_id: None,
             bound_target_gone: None,
             headless: true,
+            window_helper: None,
         };
 
         match discover_and_attach_lightpanda_targets(&mut manager, deadline).await {
@@ -3064,6 +3106,7 @@ mod tests {
             bound_target_id: None,
             bound_target_gone: None,
             headless: true,
+            window_helper: None,
         }
     }
 
@@ -3117,6 +3160,7 @@ mod tests {
             bound_target_id: None,
             bound_target_gone: None,
             headless: true,
+            window_helper: None,
         };
         manager.close().await.unwrap();
 

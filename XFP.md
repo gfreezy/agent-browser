@@ -20,3 +20,8 @@ its pnpm integrity hash. This package targets the XFP desktop platforms only.
 
 Once upstream releases this behavior, verify background and explicit foreground
 operations before moving the desktop app back to an upstream package.
+
+
+### XFP background windows
+
+Set `AGENT_BROWSER_BACKGROUND_WINDOW=1` for daemon-owned headed Chrome with an absolute `--profile` path. The bundled XFP extension creates the initial window without activation and selects visible tabs without raising the window. `bringtofront` still explicitly raises it. Headless browsers, imported profile names and attached browsers are not opted in. Requires Chrome support for `Extensions.loadUnpacked`; unsupported versions fail instead of falling back to focus-stealing activation. The helper uses `debugger.getTargets` only for tab identity; it never attaches a debugger or accesses website data.

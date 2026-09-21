@@ -8,6 +8,9 @@
 //! Owned Windows Chrome uses the same private headless desktop and Job Object
 //! lifetime through MCP; headed and external-connection semantics are unchanged.
 
+// XFP AGENT_BROWSER_BACKGROUND_WINDOW is inherited by the shared native daemon.
+// MCP tab commands use the same manager as CLI; no separate tool is needed.
+
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde_json::{json, Value};
 use std::collections::BTreeSet;
@@ -1298,7 +1301,7 @@ fn parity_tools() -> Vec<Value> {
         tool(
             TOOL_TAB_SWITCH,
             "Tab switch",
-            "Switch to a tab by id (t1), label, or CDP target id. Switching also binds the session to that tab.",
+            "Switch to a tab by id (t1), label, or CDP target id. Switching also binds the session to that tab. XFP background-window mode selects the visible tab without raising its window.",
             json!({ "tab": { "type": "string", "description": "Tab id (t1), label, or CDP target id." } }),
             &["tab"],
         ),
